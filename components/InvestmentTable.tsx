@@ -33,49 +33,58 @@ const InvestmentTable: React.FC<InvestmentTableProps> = ({ data }) => {
   });
 
   return (
-    <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-100">
-      <table className="min-w-full divide-y divide-gray-200 text-[10px]">
-        <thead className="bg-gray-50">
+    <div className="overflow-x-auto bg-white rounded-[2rem] shadow-sm border border-slate-100 mb-10">
+      <table className="min-w-full divide-y divide-slate-200 text-[10px]">
+        <thead className="bg-slate-50">
           <tr>
-            <th className="px-2 py-3 text-left font-bold text-gray-500 uppercase">No.</th>
-            <th className="px-3 py-3 text-left font-bold text-gray-500 uppercase">Kab./Kota</th>
-            <th className="px-2 py-3 text-right font-bold text-gray-500 uppercase">ESDM</th>
-            <th className="px-2 py-3 text-right font-bold text-gray-500 uppercase">Pariwisata</th>
-            <th className="px-2 py-3 text-right font-bold text-gray-500 uppercase">Perdagangan</th>
-            <th className="px-2 py-3 text-right font-bold text-gray-500 uppercase">Pertanian</th>
-            <th className="px-3 py-3 text-right font-bold text-blue-600 uppercase bg-blue-50/50">Investasi</th>
-            <th className="px-2 py-3 text-center font-bold text-gray-500 uppercase">TKA</th>
-            <th className="px-2 py-3 text-center font-bold text-gray-500 uppercase">TKI</th>
-            <th className="px-2 py-3 text-center font-bold text-gray-500 uppercase">Proyek</th>
+            <th className="px-3 py-4 text-left font-black text-slate-500 uppercase tracking-wider">No.</th>
+            <th className="px-4 py-4 text-left font-black text-slate-500 uppercase tracking-wider">Kabupaten / Kota</th>
+            <th className="px-2 py-4 text-right font-black text-slate-500 uppercase tracking-wider">ESDM</th>
+            <th className="px-2 py-4 text-right font-black text-slate-500 uppercase tracking-wider">Pariwisata</th>
+            <th className="px-2 py-4 text-right font-black text-slate-500 uppercase tracking-wider">Dagang</th>
+            <th className="px-2 py-4 text-right font-black text-slate-500 uppercase tracking-wider">PUPR</th>
+            <th className="px-2 py-4 text-right font-black text-slate-500 uppercase tracking-wider">Hub</th>
+            <th className="px-2 py-4 text-right font-black text-slate-500 uppercase tracking-wider">Telkom</th>
+            <th className="px-2 py-4 text-right font-black text-slate-500 uppercase tracking-wider">Industri</th>
+            <th className="px-4 py-4 text-right font-black text-blue-600 uppercase tracking-wider bg-blue-50/50">Total Realisasi</th>
+            <th className="px-2 py-4 text-center font-black text-rose-500 uppercase tracking-wider">TKA</th>
+            <th className="px-2 py-4 text-center font-black text-indigo-500 uppercase tracking-wider">TKI</th>
+            <th className="px-2 py-4 text-center font-black text-slate-700 uppercase tracking-wider">Proyek</th>
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-100">
+        <tbody className="bg-white divide-y divide-slate-100">
           {data.map((item) => (
-            <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-2 py-3 text-gray-400">{item.no}</td>
-              <td className="px-3 py-3 font-semibold text-gray-900">{item.kabKota}</td>
-              <td className="px-2 py-3 text-right text-gray-600">{formatCurrency(item.esdm)}</td>
-              <td className="px-2 py-3 text-right text-gray-600">{formatCurrency(item.pariwisata)}</td>
-              <td className="px-2 py-3 text-right text-gray-600">{formatCurrency(item.perdagangan)}</td>
-              <td className="px-2 py-3 text-right text-gray-600">{formatCurrency(item.pertanian)}</td>
-              <td className="px-3 py-3 text-right font-bold text-emerald-600 bg-emerald-50/20">{formatCurrency(item.nilaiInvestasi)}</td>
-              <td className="px-2 py-3 text-center text-red-600 font-medium">{item.tka}</td>
-              <td className="px-2 py-3 text-center text-blue-600 font-medium">{item.tki}</td>
-              <td className="px-2 py-3 text-center font-bold text-gray-700">{item.jumlahProyek}</td>
+            <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+              <td className="px-3 py-4 text-slate-400 font-bold">{item.no}</td>
+              <td className="px-4 py-4 font-black text-slate-800">{item.kabKota}</td>
+              <td className="px-2 py-4 text-right text-slate-600 font-medium">{formatCurrency(item.esdm)}</td>
+              <td className="px-2 py-4 text-right text-slate-600 font-medium">{formatCurrency(item.pariwisata)}</td>
+              <td className="px-2 py-4 text-right text-slate-600 font-medium">{formatCurrency(item.perdagangan)}</td>
+              <td className="px-2 py-4 text-right text-slate-600 font-medium">{formatCurrency(item.pupr)}</td>
+              <td className="px-2 py-4 text-right text-slate-600 font-medium">{formatCurrency(item.perhubungan)}</td>
+              <td className="px-2 py-4 text-right text-slate-600 font-medium">{formatCurrency(item.telekomunikasi)}</td>
+              <td className="px-2 py-4 text-right text-slate-600 font-medium">{formatCurrency(item.perindustrian)}</td>
+              <td className="px-4 py-4 text-right font-black text-emerald-600 bg-emerald-50/10">{formatCurrency(item.nilaiInvestasi)}</td>
+              <td className="px-2 py-4 text-center text-rose-600 font-black">{item.tka}</td>
+              <td className="px-2 py-4 text-center text-indigo-600 font-black">{item.tki}</td>
+              <td className="px-2 py-4 text-center font-black text-slate-800">{item.jumlahProyek}</td>
             </tr>
           ))}
         </tbody>
-        <tfoot className="bg-gray-900 text-white font-bold">
+        <tfoot className="bg-slate-900 text-white font-black">
           <tr>
-            <td colSpan={2} className="px-3 py-3 text-left uppercase">Total Provinsi</td>
-            <td className="px-2 py-3 text-right">{formatCurrency(totals.esdm)}</td>
-            <td className="px-2 py-3 text-right">{formatCurrency(totals.pariwisata)}</td>
-            <td className="px-2 py-3 text-right">{formatCurrency(totals.perdagangan)}</td>
-            <td className="px-2 py-3 text-right">{formatCurrency(totals.pertanian)}</td>
-            <td className="px-3 py-3 text-right text-emerald-400">{formatCurrency(totals.nilaiInvestasi)}</td>
-            <td className="px-2 py-3 text-center">{totals.tka}</td>
-            <td className="px-2 py-3 text-center">{totals.tki}</td>
-            <td className="px-2 py-3 text-center">{totals.jumlahProyek}</td>
+            <td colSpan={2} className="px-4 py-5 text-left uppercase tracking-widest text-[11px]">Total Seluruh Provinsi</td>
+            <td className="px-2 py-5 text-right opacity-80">{formatCurrency(totals.esdm)}</td>
+            <td className="px-2 py-5 text-right opacity-80">{formatCurrency(totals.pariwisata)}</td>
+            <td className="px-2 py-5 text-right opacity-80">{formatCurrency(totals.perdagangan)}</td>
+            <td className="px-2 py-5 text-right opacity-80">{formatCurrency(totals.pupr)}</td>
+            <td className="px-2 py-5 text-right opacity-80">{formatCurrency(totals.perhubungan)}</td>
+            <td className="px-2 py-5 text-right opacity-80">{formatCurrency(totals.telekomunikasi)}</td>
+            <td className="px-2 py-5 text-right opacity-80">{formatCurrency(totals.perindustrian)}</td>
+            <td className="px-4 py-5 text-right text-emerald-400 text-xs">{formatCurrency(totals.nilaiInvestasi)}</td>
+            <td className="px-2 py-5 text-center text-rose-400">{totals.tka}</td>
+            <td className="px-2 py-5 text-center text-indigo-400">{totals.tki}</td>
+            <td className="px-2 py-5 text-center">{totals.jumlahProyek}</td>
           </tr>
         </tfoot>
       </table>

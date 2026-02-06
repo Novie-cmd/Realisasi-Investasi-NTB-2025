@@ -2,7 +2,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { RegencyInvestmentData } from './types';
 import { INITIAL_DATA, SECTORS, QUARTERS } from './constants';
-import { supabase } from './lib/supabase';
 import StatsCard from './components/StatsCard';
 import InvestmentTable from './components/InvestmentTable';
 import ImportModal from './components/ImportModal';
@@ -19,9 +18,15 @@ import {
 type ActiveView = 'dashboard' | 'regency-detail' | 'quarterly' | 'pma-pmdn' | 'sectors';
 
 const App: React.FC = () => {
-  // --- AUTH & USER STATE ---
-  const [user, setUser] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // --- SESSION CONSTANTS ---
+  const SESSION_KEY = 'SIMINVEST_SESSION_TOKEN';
+
+  // --- AUTHENTICATION STATE ---
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    return localStorage.getItem(SESSION_KEY) === 'active_session';
+  });
+  const [loginData, setLoginData] = useState({ username: '', password: '' });
+  const [loginError, setLoginError] = useState('');
 
   // --- APP DATA STATE ---
   const [data, setData] = useState<RegencyInvestmentData[]>(INITIAL_DATA);
@@ -30,83 +35,59 @@ const App: React.FC = () => {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [isCustomData, setIsCustomData] = useState(false);
 
-  // --- AUTH INITIALIZATION ---
+  // Load URL data if shared
   useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchCloudData();
-      setIsLoading(false);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchCloudData();
-    });
-
-    return () => subscription.unsubscribe();
+    const params = new URLSearchParams(window.location.search);
+    const encodedData = params.get('d');
+    if (encodedData) {
+      try {
+        const decodedData = JSON.parse(atob(encodedData));
+        if (Array.isArray(decodedData)) {
+          setData(decodedData);
+          setIsCustomData(true);
+        }
+      } catch (e) {
+        console.error("URL Data Error", e);
+      }
+    }
   }, []);
 
-  // --- DATA FETCHING ---
-  const fetchCloudData = async () => {
-    setIsSyncing(true);
-    try {
-      const { data: investments, error } = await supabase
-        .from('investments')
-        .select('*')
-        .order('no', { ascending: true });
-
-      if (error) throw error;
-      if (investments && investments.length > 0) {
-        setData(investments);
-      }
-    } catch (err) {
-      console.error("Gagal mengambil data dari Supabase:", err);
-    } finally {
-      setIsSyncing(false);
+  // --- ACTIONS ---
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Simple verification (admin/admin)
+    if (loginData.username.toLowerCase() === 'admin' && loginData.password === 'admin') {
+      localStorage.setItem(SESSION_KEY, 'active_session');
+      setIsLoggedIn(true);
+      setLoginError('');
+    } else {
+      setLoginError("Username atau Password salah! (Gunakan: admin/admin)");
     }
   };
 
-  // --- ACTIONS ---
-  const handleGitHubLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: { redirectTo: window.location.origin }
-    });
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setData(INITIAL_DATA); // Reset to default when logout
-  };
-
-  const handleSyncToCloud = async (newData: RegencyInvestmentData[]) => {
-    if (!user) return alert("Harap login terlebih dahulu untuk menyimpan ke cloud.");
-    setIsSyncing(true);
-    try {
-      const { error } = await supabase
-        .from('investments')
-        .upsert(newData.map(item => ({ ...item, user_id: user.id })));
-
-      if (error) throw error;
-      setData(newData);
-      alert("Data berhasil disinkronkan ke Cloud!");
-    } catch (err) {
-      alert("Gagal sinkronisasi data.");
-      console.error(err);
-    } finally {
-      setIsSyncing(false);
+  const handleLogout = () => {
+    // Immediate clear and state update
+    localStorage.removeItem(SESSION_KEY);
+    setIsLoggedIn(false);
+    // Reset view
+    setActiveView('dashboard');
+    setLoginData({ username: '', password: '' });
+    // Clear URL params if custom data
+    if (isCustomData) {
+      window.history.replaceState({}, '', window.location.pathname);
     }
   };
 
   const handleShare = async () => {
-    const shareUrl = window.location.origin + window.location.pathname;
+    let shareUrl = window.location.origin + window.location.pathname;
+    if (isCustomData) {
+      shareUrl += `?d=${btoa(JSON.stringify(data))}`;
+    }
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'SimInvest NTB 2025', text: 'Dashboard Investasi NTB', url: shareUrl });
+        await navigator.share({ title: 'SimInvest NTB 2025', text: 'Data Investasi NTB', url: shareUrl });
       } catch (err) { console.error('Share Error', err); }
     } else {
       navigator.clipboard.writeText(shareUrl);
@@ -157,16 +138,8 @@ const App: React.FC = () => {
     return `Rp ${val.toLocaleString()}`;
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
   // --- RENDER LOGIN SCREEN ---
-  if (!user) {
+  if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-md animate-in fade-in zoom-in duration-500">
@@ -175,19 +148,46 @@ const App: React.FC = () => {
                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
             </div>
             <h1 className="text-4xl font-black text-white tracking-tight">SimInvest NTB</h1>
-            <p className="text-slate-400 font-medium mt-2">Sistem Monitoring Investasi OSS RBA</p>
+            <p className="text-slate-400 font-medium mt-2">Sistem Monitoring Investasi - Tahun 2025</p>
           </div>
           
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl shadow-2xl flex flex-col items-center space-y-6">
-            <p className="text-slate-400 text-center text-sm font-medium">Harap masuk menggunakan akun GitHub untuk sinkronisasi data cloud.</p>
+          <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl shadow-2xl">
+            {loginError && (
+              <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-bold rounded-2xl text-center">
+                {loginError}
+              </div>
+            )}
             
-            <button 
-              onClick={handleGitHubLogin}
-              className="w-full flex items-center justify-center space-x-3 bg-white hover:bg-slate-100 text-slate-900 font-black py-4 rounded-2xl shadow-xl transition-all active:scale-[0.98]"
-            >
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" /></svg>
-              <span>MASUK DENGAN GITHUB</span>
-            </button>
+            <form onSubmit={handleLogin} className="space-y-6">
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Username</label>
+                <input 
+                  type="text" 
+                  required
+                  value={loginData.username}
+                  onChange={(e) => setLoginData({...loginData, username: e.target.value})}
+                  className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600" 
+                  placeholder="Masukkan username (admin)"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Password</label>
+                <input 
+                  type="password" 
+                  required
+                  value={loginData.password}
+                  onChange={(e) => setLoginData({...loginData, password: e.target.value})}
+                  className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600" 
+                  placeholder="•••••••• (admin)"
+                />
+              </div>
+              <button 
+                type="submit" 
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-500/20 transition-all active:scale-[0.98] mt-2"
+              >
+                MASUK APLIKASI
+              </button>
+            </form>
           </div>
           <p className="mt-8 text-center text-[10px] text-slate-600 font-bold uppercase tracking-[0.2em]">Pemerintah Provinsi Nusa Tenggara Barat</p>
         </div>
@@ -198,6 +198,7 @@ const App: React.FC = () => {
   // --- RENDER MAIN DASHBOARD ---
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50">
+      {/* Sidebar Navigation */}
       <aside className="w-full md:w-64 bg-slate-900 text-white p-6 md:sticky md:top-0 md:h-screen flex flex-col z-30 shadow-2xl print:hidden">
         <div className="flex items-center space-x-3 mb-10 px-2">
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
@@ -232,15 +233,8 @@ const App: React.FC = () => {
           </button>
         </nav>
 
+        {/* Action Buttons Section */}
         <div className="pt-6 border-t border-slate-800 mt-auto space-y-2 pb-2">
-           <div className="flex items-center space-x-3 px-4 py-3 mb-2 bg-slate-800/50 rounded-xl">
-              <img src={user?.user_metadata?.avatar_url} className="w-8 h-8 rounded-full border border-blue-500" alt="Avatar" />
-              <div className="overflow-hidden">
-                 <p className="text-[10px] font-black truncate">{user?.user_metadata?.full_name}</p>
-                 <p className="text-[8px] text-slate-500 truncate uppercase">GitHub Authenticated</p>
-              </div>
-           </div>
-
            <button 
              onClick={() => setIsImportOpen(true)}
              className="w-full text-left px-4 py-3 rounded-xl flex items-center space-x-3 text-emerald-400 hover:bg-emerald-500/10 transition-all font-bold text-xs uppercase"
@@ -254,11 +248,16 @@ const App: React.FC = () => {
              className="w-full text-left px-4 py-3 rounded-xl flex items-center space-x-3 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-all font-bold text-xs uppercase"
            >
              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-             <span>Log Out Akun</span>
+             <span>Keluar Sesi</span>
            </button>
+           
+           <div className="px-4 py-2">
+             <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">© 2025 SimInvest NTB</p>
+           </div>
         </div>
       </aside>
 
+      {/* Main Content Area */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
         <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
@@ -266,15 +265,12 @@ const App: React.FC = () => {
                <h2 className="text-3xl font-black text-slate-800 tracking-tight">
                  {activeView === 'regency-detail' ? `Detail: ${selectedRegency.kabKota}` : 'Ringkasan Investasi 2025'}
                </h2>
-               {isSyncing && <span className="px-2 py-1 bg-blue-100 text-blue-700 text-[9px] font-black rounded-lg border border-blue-200 uppercase animate-pulse">Syncing Cloud...</span>}
+               {isCustomData && <span className="px-2 py-1 bg-amber-100 text-amber-700 text-[9px] font-black rounded-lg border border-amber-200 uppercase">Data Impor</span>}
             </div>
             <p className="text-slate-500 font-medium text-sm italic">Monitoring Realisasi Berdasarkan OSS RBA Provinsi NTB</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-2 print:hidden">
-            <button onClick={fetchCloudData} className="p-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-all shadow-sm">
-                <svg className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-            </button>
             {activeView === 'regency-detail' && (
               <select 
                 value={selectedRegencyId}
@@ -364,7 +360,7 @@ const App: React.FC = () => {
       </main>
 
       {isImportOpen && (
-        <ImportModal onClose={() => setIsImportOpen(false)} onImport={handleSyncToCloud} />
+        <ImportModal onClose={() => setIsImportOpen(false)} onImport={(d) => { setData(d); setIsCustomData(true); }} />
       )}
     </div>
   );
