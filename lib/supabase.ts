@@ -1,20 +1,27 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-/**
- * Konfigurasi Supabase untuk Produksi
- * Pastikan Anda telah menambahkan SUPABASE_URL dan SUPABASE_ANON_KEY 
- * di menu Settings > Environment Variables pada Dashboard Vercel Anda.
- */
+// Menggunakan pengecekan typeof untuk mencegah ReferenceError di browser
+const getEnv = (key: string): string => {
+  try {
+    return (typeof process !== 'undefined' && process.env && process.env[key]) || '';
+  } catch {
+    return '';
+  }
+};
 
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
+const supabaseUrl = getEnv('SUPABASE_URL');
+const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
+
+// Inisialisasi dengan nilai fallback yang aman agar tidak melempar error fatal saat startup
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder-project.supabase.co', 
+  supabaseAnonKey || 'placeholder-key'
+);
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn(
-    "PERINGATAN: Supabase URL atau Anon Key tidak ditemukan. " +
-    "Pastikan variabel lingkungan SUPABASE_URL dan SUPABASE_ANON_KEY sudah terpasang."
+    "SimInvest NTB: Variabel lingkungan Supabase belum dikonfigurasi. " +
+    "Aplikasi akan berjalan dalam mode offline/demo menggunakan INITIAL_DATA."
   );
 }
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);

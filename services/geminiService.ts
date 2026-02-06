@@ -3,8 +3,13 @@ import { GoogleGenAI } from "@google/genai";
 import { RegencyInvestmentData } from "../types";
 
 export const analyzeInvestmentData = async (data: RegencyInvestmentData[]): Promise<string> => {
-  // Always initialize a new GoogleGenAI instance with the API key from process.env
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY) || '';
+  
+  if (!apiKey) {
+    return "Analisis AI tidak tersedia: API_KEY belum dikonfigurasi di variabel lingkungan.";
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
   
   const summary = data.map(d => ({
     wilayah: d.kabKota,
@@ -13,7 +18,6 @@ export const analyzeInvestmentData = async (data: RegencyInvestmentData[]): Prom
         pma: d.pma,
         pmdn: d.pmdn
     },
-    // Fix: Updated to use actual property names from RegencyInvestmentData defined in types.ts
     sektor: {
       esdm: d.esdm,
       pariwisata: d.pariwisata,
@@ -51,15 +55,13 @@ export const analyzeInvestmentData = async (data: RegencyInvestmentData[]): Prom
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        // Disabling thinking budget for simple summarization task to reduce latency
         thinkingConfig: { thinkingBudget: 0 }
       }
     });
 
-    // Access the text property directly from the response object
     return response.text || "Gagal mendapatkan analisis dari AI.";
   } catch (error) {
     console.error("AI Analysis Error:", error);
-    return "Terjadi kesalahan saat menghubungi layanan AI.";
+    return "Terjadi kesalahan saat menghubungi layanan AI. Pastikan API_KEY valid.";
   }
 };
