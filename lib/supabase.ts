@@ -1,27 +1,31 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Menggunakan pengecekan typeof untuk mencegah ReferenceError di browser
+// Fungsi untuk mendapatkan env var dengan dukungan Vite & Process
 const getEnv = (key: string): string => {
-  try {
-    return (typeof process !== 'undefined' && process.env && process.env[key]) || '';
-  } catch {
-    return '';
-  }
+  // @ts-ignore
+  return import.meta.env[key] || (typeof process !== 'undefined' && process.env ? process.env[key] : '') || '';
 };
 
-const supabaseUrl = getEnv('SUPABASE_URL');
-const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
+// Coba ambil dengan prefix VITE_ atau langsung
+const supabaseUrl = getEnv('VITE_SUPABASE_URL') || getEnv('SUPABASE_URL');
+const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY') || getEnv('SUPABASE_ANON_KEY');
 
-// Inisialisasi dengan nilai fallback yang aman agar tidak melempar error fatal saat startup
+// Deteksi apakah ini masih menggunakan nilai placeholder
+export const isConfigured = Boolean(
+  supabaseUrl && 
+  supabaseAnonKey && 
+  !supabaseUrl.includes('placeholder')
+);
+
 export const supabase = createClient(
-  supabaseUrl || 'https://placeholder-project.supabase.co', 
+  supabaseUrl || 'https://placeholder-ntb.supabase.co', 
   supabaseAnonKey || 'placeholder-key'
 );
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    "SimInvest NTB: Variabel lingkungan Supabase belum dikonfigurasi. " +
-    "Aplikasi akan berjalan dalam mode offline/demo menggunakan INITIAL_DATA."
+if (!isConfigured) {
+  console.error(
+    "CRITICAL ERROR: Supabase environment variables are missing! " +
+    "Please add SUPABASE_URL and SUPABASE_ANON_KEY to your Vercel Project Settings."
   );
 }

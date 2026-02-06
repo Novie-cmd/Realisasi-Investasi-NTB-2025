@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { RegencyInvestmentData } from './types';
 import { INITIAL_DATA, SECTORS, QUARTERS } from './constants';
-import { supabase } from './lib/supabase';
+import { supabase, isConfigured } from './lib/supabase';
 import StatsCard from './components/StatsCard';
 import InvestmentTable from './components/InvestmentTable';
 import ImportModal from './components/ImportModal';
@@ -43,11 +43,16 @@ const App: React.FC = () => {
   useEffect(() => {
     const initAuth = async () => {
       try {
+        if (!isConfigured) {
+          console.warn("Database belum terkonfigurasi.");
+          setIsLoading(false);
+          return;
+        }
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user ?? null);
         if (session?.user) fetchCloudData();
       } catch (err) {
-        console.error("Auth Error:", err);
+        console.error("Auth Init Error:", err);
       } finally {
         setIsLoading(false);
       }
@@ -65,7 +70,7 @@ const App: React.FC = () => {
 
   // --- DATA FETCHING ---
   const fetchCloudData = async () => {
-    if (isDemoMode) return;
+    if (isDemoMode || !isConfigured) return;
     setIsSyncing(true);
     try {
       const { data: investments, error } = await supabase
@@ -78,7 +83,7 @@ const App: React.FC = () => {
         setData(investments);
       }
     } catch (err) {
-      console.error("Gagal mengambil data dari Supabase:", err);
+      console.error("Gagal mengambil data cloud:", err);
     } finally {
       setIsSyncing(false);
     }
@@ -87,19 +92,33 @@ const App: React.FC = () => {
   // --- AUTH ACTIONS ---
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoggingIn(true);
     setAuthError(null);
+
+    if (!isConfigured) {
+      setAuthError("Sistem belum terhubung ke database. Harap hubungi Administrator untuk set up Environment Variables.");
+      return;
+    }
+
+    setIsLoggingIn(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        if (error.message.includes("fetch")) {
+          throw new Error("Koneksi ke server database gagal. Cek SUPABASE_URL Anda.");
+        }
+        throw error;
+      }
+      if (data.user) setUser(data.user);
     } catch (err: any) {
       setAuthError(err.message || "Email atau password salah.");
+      console.error("Login Error:", err);
     } finally {
       setIsLoggingIn(false);
     }
   };
 
   const handleGitHubLogin = async () => {
+    if (!isConfigured) return alert("Database belum terhubung.");
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
@@ -112,14 +131,14 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    if (isConfigured) await supabase.auth.signOut();
     setUser(null);
     setIsDemoMode(false);
     setData(INITIAL_DATA);
     setActiveView('dashboard');
   };
 
-  // --- OTHER ACTIONS ---
+  // --- ACTIONS ---
   const handleSyncToCloud = async (newData: RegencyInvestmentData[]) => {
     if (isDemoMode) return alert("Mode Demo tidak dapat menyimpan ke Cloud.");
     if (!user) return alert("Harap login terlebih dahulu.");
@@ -208,7 +227,6 @@ const App: React.FC = () => {
   if (!user && !isDemoMode) {
     return (
       <div className="min-h-screen bg-animate flex items-center justify-center p-6 relative overflow-hidden">
-        {/* Background Decor */}
         <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/20 blur-[120px] rounded-full"></div>
           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600/20 blur-[120px] rounded-full"></div>
@@ -250,14 +268,22 @@ const App: React.FC = () => {
                 />
               </div>
 
-              {authError && <p className="text-rose-400 text-xs font-bold bg-rose-500/10 p-3 rounded-lg border border-rose-500/20">{authError}</p>}
+              {authError && (
+                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400">
+                  <p className="text-xs font-black uppercase tracking-widest mb-1 flex items-center">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Error Login
+                  </p>
+                  <p className="text-xs font-medium leading-relaxed">{authError}</p>
+                </div>
+              )}
 
               <button 
                 type="submit"
                 disabled={isLoggingIn}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-lg shadow-blue-500/20 transition-all active:scale-95 disabled:opacity-50"
               >
-                {isLoggingIn ? 'MEMPROSES...' : 'MASUK KE DASHBOARD'}
+                {isLoggingIn ? 'MENGHUBUNGKAN...' : 'MASUK KE DASHBOARD'}
               </button>
             </form>
 
@@ -393,7 +419,7 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex flex-wrap items-center gap-4 print:hidden">
-            {!isDemoMode && (
+            {!isDemoMode && isConfigured && (
               <button 
                 onClick={fetchCloudData} 
                 className="p-3 bg-white border border-slate-200 text-slate-600 rounded-2xl hover:bg-slate-50 transition-all shadow-sm hover:shadow-md active:scale-95"
