@@ -23,6 +23,12 @@ const App: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // --- LOGIN FORM STATE ---
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // --- APP DATA STATE ---
   const [data, setData] = useState<RegencyInvestmentData[]>(INITIAL_DATA);
@@ -78,18 +84,30 @@ const App: React.FC = () => {
     }
   };
 
-  // --- ACTIONS ---
+  // --- AUTH ACTIONS ---
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    setAuthError(null);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } catch (err: any) {
+      setAuthError(err.message || "Email atau password salah.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
   const handleGitHubLogin = async () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
-        options: { 
-          redirectTo: window.location.origin,
-        }
+        options: { redirectTo: window.location.origin }
       });
       if (error) throw error;
     } catch (err: any) {
-      alert("Login Gagal: " + err.message + ". Pastikan GitHub OAuth sudah dikonfigurasi di Supabase Dashboard.");
+      setAuthError(err.message);
     }
   };
 
@@ -101,9 +119,10 @@ const App: React.FC = () => {
     setActiveView('dashboard');
   };
 
+  // --- OTHER ACTIONS ---
   const handleSyncToCloud = async (newData: RegencyInvestmentData[]) => {
     if (isDemoMode) return alert("Mode Demo tidak dapat menyimpan ke Cloud.");
-    if (!user) return alert("Harap login terlebih dahulu untuk menyimpan ke cloud.");
+    if (!user) return alert("Harap login terlebih dahulu.");
     setIsSyncing(true);
     try {
       const { error } = await supabase
@@ -112,9 +131,9 @@ const App: React.FC = () => {
 
       if (error) throw error;
       setData(newData);
-      alert("Data berhasil disinkronkan ke Vercel Cloud!");
+      alert("Data berhasil disinkronkan ke Cloud!");
     } catch (err) {
-      alert("Gagal sinkronisasi data ke database.");
+      alert("Gagal sinkronisasi data.");
       console.error(err);
     } finally {
       setIsSyncing(false);
@@ -125,7 +144,7 @@ const App: React.FC = () => {
     const shareUrl = window.location.origin;
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'SimInvest NTB 2025', text: 'Dashboard Investasi Provinsi NTB Real-time', url: shareUrl });
+        await navigator.share({ title: 'SimInvest NTB 2025', text: 'Dashboard Investasi Provinsi NTB', url: shareUrl });
       } catch (err) { console.error('Share Error', err); }
     } else {
       navigator.clipboard.writeText(shareUrl);
@@ -139,7 +158,7 @@ const App: React.FC = () => {
       const res = await analyzeInvestmentData(data);
       setAiAnalysis(res);
     } catch (e) {
-      setAiAnalysis("Maaf, layanan analisis sedang sibuk.");
+      setAiAnalysis("Layanan analisis sedang sibuk.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -185,66 +204,97 @@ const App: React.FC = () => {
     );
   }
 
+  // --- LOGIN UI ---
   if (!user && !isDemoMode) {
     return (
-      <div className="min-h-screen bg-animate flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      <div className="min-h-screen bg-animate flex items-center justify-center p-6 relative overflow-hidden">
         {/* Background Decor */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/20 blur-[120px] rounded-full"></div>
           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600/20 blur-[120px] rounded-full"></div>
         </div>
 
-        <div className="w-full max-w-lg relative z-10 animate-in fade-in zoom-in duration-1000">
-          <div className="text-center mb-10">
-            <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-[2.5rem] mx-auto flex items-center justify-center shadow-2xl shadow-blue-500/40 mb-8 transform hover:scale-105 transition-transform duration-500 cursor-default">
-               <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+        <div className="w-full max-w-md relative z-10 animate-in fade-in zoom-in duration-700">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-2xl mx-auto flex items-center justify-center shadow-xl mb-4">
+               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
             </div>
-            <h1 className="text-5xl font-extrabold text-white tracking-tight mb-3">SimInvest <span className="text-blue-400">NTB</span></h1>
-            <p className="text-slate-400 font-semibold text-lg">Sistem Monitoring Realisasi Investasi OSS RBA</p>
+            <h1 className="text-3xl font-extrabold text-white tracking-tight">SimInvest <span className="text-blue-400">NTB</span></h1>
+            <p className="text-slate-400 text-sm font-medium">Monitoring Realisasi Investasi 2025</p>
           </div>
           
-          <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 p-10 rounded-[3rem] shadow-2xl flex flex-col items-center space-y-6">
-            <div className="text-center space-y-2 mb-4">
-              <h2 className="text-white text-xl font-bold">Portal Administrasi 2025</h2>
-              <p className="text-slate-400 text-sm">Silakan pilih metode akses untuk melanjutkan.</p>
-            </div>
+          <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 p-8 rounded-[2rem] shadow-2xl">
+            <h2 className="text-white text-xl font-bold mb-6 text-center">Form Login Aplikasi</h2>
             
+            <form onSubmit={handleEmailLogin} className="space-y-4">
+              <div>
+                <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-2 ml-1">Email Address</label>
+                <input 
+                  type="email" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  placeholder="admin@ntbprov.go.id"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-2 ml-1">Password</label>
+                <input 
+                  type="password" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              {authError && <p className="text-rose-400 text-xs font-bold bg-rose-500/10 p-3 rounded-lg border border-rose-500/20">{authError}</p>}
+
+              <button 
+                type="submit"
+                disabled={isLoggingIn}
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-lg shadow-blue-500/20 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isLoggingIn ? 'MEMPROSES...' : 'MASUK KE DASHBOARD'}
+              </button>
+            </form>
+
+            <div className="flex items-center my-6 space-x-3">
+              <div className="flex-1 h-[1px] bg-white/5"></div>
+              <span className="text-slate-500 text-[9px] font-black uppercase tracking-widest">Atau Login Sosial</span>
+              <div className="flex-1 h-[1px] bg-white/5"></div>
+            </div>
+
             <button 
               onClick={handleGitHubLogin}
-              className="group w-full flex items-center justify-center space-x-4 bg-white hover:bg-blue-600 hover:text-white text-slate-900 font-extrabold py-5 rounded-2xl shadow-xl transition-all active:scale-[0.98] border-b-4 border-slate-200 hover:border-blue-700"
+              className="w-full flex items-center justify-center space-x-3 bg-white hover:bg-slate-100 text-slate-900 font-bold py-3.5 rounded-xl transition-all active:scale-95"
             >
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" /></svg>
-              <span>LOGIN DENGAN GITHUB</span>
-            </button>
-
-            <div className="w-full flex items-center space-x-4">
-              <div className="flex-1 h-[1px] bg-white/10"></div>
-              <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Atau</span>
-              <div className="flex-1 h-[1px] bg-white/10"></div>
-            </div>
-
-            <button 
-              onClick={() => setIsDemoMode(true)}
-              className="w-full flex items-center justify-center space-x-4 bg-slate-800 hover:bg-slate-700 text-white font-extrabold py-5 rounded-2xl shadow-xl transition-all active:scale-[0.98] border border-white/5"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-              <span>AKSES MODE DEMO (LIHAT DATA)</span>
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" /></svg>
+              <span>Login dengan GitHub</span>
             </button>
             
-            <div className="flex items-center space-x-2 text-slate-500 pt-4">
-               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-               <span className="text-[10px] font-black uppercase tracking-widest">DPMPTSP PROVINSI NTB &bull; 2025</span>
+            <div className="mt-8 pt-4 border-t border-white/5 text-center">
+              <button 
+                onClick={() => setIsDemoMode(true)}
+                className="text-blue-400 hover:text-blue-300 text-[11px] font-black uppercase tracking-widest transition-colors flex items-center justify-center mx-auto"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                Masuk sebagai Tamu (Mode Demo)
+              </button>
             </div>
           </div>
           
-          <div className="mt-8 text-center text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em] opacity-50">
-            Powered by Vercel Cloud & Google Gemini AI
-          </div>
+          <p className="mt-6 text-center text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+            DPMPTSP PROVINSI NTB &bull; VERSI 2025.1
+          </p>
         </div>
       </div>
     );
   }
 
+  // --- DASHBOARD UI ---
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50">
       <aside className="w-full md:w-72 bg-slate-900 text-white p-6 md:sticky md:top-0 md:h-screen flex flex-col z-30 shadow-2xl print:hidden">
@@ -282,7 +332,7 @@ const App: React.FC = () => {
              <div className="flex items-center space-x-4 px-5 py-4 mb-4 bg-slate-800/40 rounded-[1.5rem] border border-white/5 backdrop-blur-sm">
                 <img src={user?.user_metadata?.avatar_url || 'https://ui-avatars.com/api/?name=User+NTB'} className="w-10 h-10 rounded-xl border-2 border-blue-500 p-0.5" alt="Avatar" />
                 <div className="overflow-hidden">
-                   <p className="text-[11px] font-black text-white truncate">{user?.user_metadata?.full_name || 'Admin NTB'}</p>
+                   <p className="text-[11px] font-black text-white truncate">{user?.user_metadata?.full_name || user?.email || 'Admin NTB'}</p>
                    <p className="text-[9px] text-emerald-400 font-bold tracking-widest uppercase flex items-center">
                       <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span>
                       Terverifikasi
