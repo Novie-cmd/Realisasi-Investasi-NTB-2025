@@ -22,11 +22,11 @@ const App: React.FC = () => {
   // --- AUTH & USER STATE ---
   const [user, setUser] = useState<any>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
   // --- LOGIN FORM STATE ---
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -39,124 +39,55 @@ const App: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // --- AUTH INITIALIZATION ---
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (!isConfigured) {
-          console.warn("Database belum terkonfigurasi.");
-          setIsLoading(false);
-          return;
-        }
-        const { data: { session } } = await supabase.auth.getSession();
-        setUser(session?.user ?? null);
-        if (session?.user) fetchCloudData();
-      } catch (err) {
-        console.error("Auth Init Error:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchCloudData();
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // --- DATA FETCHING ---
-  const fetchCloudData = async () => {
-    if (isDemoMode || !isConfigured) return;
-    setIsSyncing(true);
-    try {
-      const { data: investments, error } = await supabase
-        .from('investments')
-        .select('*')
-        .order('no', { ascending: true });
-
-      if (error) throw error;
-      if (investments && investments.length > 0) {
-        setData(investments);
-      }
-    } catch (err) {
-      console.error("Gagal mengambil data cloud:", err);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // --- AUTH ACTIONS ---
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  // --- LOGIN ACTION (HARDCODED) ---
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
-
-    if (!isConfigured) {
-      setAuthError("Sistem belum terhubung ke database. Harap hubungi Administrator untuk set up Environment Variables.");
-      return;
-    }
-
     setIsLoggingIn(true);
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        if (error.message.includes("fetch")) {
-          throw new Error("Koneksi ke server database gagal. Cek SUPABASE_URL Anda.");
-        }
-        throw error;
+
+    // Simulasi loading singkat untuk estetika
+    setTimeout(() => {
+      if (username === 'admin' && password === 'admin') {
+        setUser({ 
+          email: 'admin@ntbprov.go.id', 
+          user_metadata: { full_name: 'Administrator NTB' } 
+        });
+      } else {
+        setAuthError("Username atau password salah. Gunakan admin / admin.");
       }
-      if (data.user) setUser(data.user);
-    } catch (err: any) {
-      setAuthError(err.message || "Email atau password salah.");
-      console.error("Login Error:", err);
-    } finally {
       setIsLoggingIn(false);
-    }
+    }, 800);
   };
 
-  const handleGitHubLogin = async () => {
-    if (!isConfigured) return alert("Database belum terhubung.");
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'github',
-        options: { redirectTo: window.location.origin }
-      });
-      if (error) throw error;
-    } catch (err: any) {
-      setAuthError(err.message);
-    }
-  };
-
-  const handleLogout = async () => {
-    if (isConfigured) await supabase.auth.signOut();
+  const handleLogout = () => {
     setUser(null);
     setIsDemoMode(false);
     setData(INITIAL_DATA);
     setActiveView('dashboard');
   };
 
-  // --- ACTIONS ---
+  // --- OTHER ACTIONS ---
   const handleSyncToCloud = async (newData: RegencyInvestmentData[]) => {
     if (isDemoMode) return alert("Mode Demo tidak dapat menyimpan ke Cloud.");
     if (!user) return alert("Harap login terlebih dahulu.");
-    setIsSyncing(true);
-    try {
-      const { error } = await supabase
-        .from('investments')
-        .upsert(newData.map(item => ({ ...item, user_id: user.id })));
-
-      if (error) throw error;
-      setData(newData);
-      alert("Data berhasil disinkronkan ke Cloud!");
-    } catch (err) {
-      alert("Gagal sinkronisasi data.");
-      console.error(err);
-    } finally {
-      setIsSyncing(false);
+    
+    // Jika supabase terkonfigurasi, coba simpan, jika tidak hanya simpan di state lokal
+    if (isConfigured) {
+      setIsSyncing(true);
+      try {
+        const { error } = await supabase
+          .from('investments')
+          .upsert(newData.map(item => ({ ...item, user_id: 'local_admin' })));
+        if (error) throw error;
+        alert("Data berhasil disinkronkan ke Cloud!");
+      } catch (err) {
+        console.error(err);
+        alert("Gagal sinkronisasi ke database cloud, data disimpan secara lokal.");
+      } finally {
+        setIsSyncing(false);
+      }
     }
+    setData(newData);
   };
 
   const handleShare = async () => {
@@ -214,15 +145,6 @@ const App: React.FC = () => {
     return `Rp ${val.toLocaleString()}`;
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-bold text-[10px] uppercase tracking-widest animate-pulse">Menghubungkan ke Pusat Data...</p>
-      </div>
-    );
-  }
-
   // --- LOGIN UI ---
   if (!user && !isDemoMode) {
     return (
@@ -244,15 +166,15 @@ const App: React.FC = () => {
           <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 p-8 rounded-[2rem] shadow-2xl">
             <h2 className="text-white text-xl font-bold mb-6 text-center">Form Login Aplikasi</h2>
             
-            <form onSubmit={handleEmailLogin} className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-2 ml-1">Email Address</label>
+                <label className="block text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-2 ml-1">Username</label>
                 <input 
-                  type="email" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  placeholder="admin@ntbprov.go.id"
+                  type="text" 
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600"
+                  placeholder="admin"
                   required
                 />
               </div>
@@ -262,7 +184,7 @@ const App: React.FC = () => {
                   type="password" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600"
                   placeholder="••••••••"
                   required
                 />
@@ -272,7 +194,7 @@ const App: React.FC = () => {
                 <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400">
                   <p className="text-xs font-black uppercase tracking-widest mb-1 flex items-center">
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Error Login
+                    Akses Ditolak
                   </p>
                   <p className="text-xs font-medium leading-relaxed">{authError}</p>
                 </div>
@@ -283,24 +205,10 @@ const App: React.FC = () => {
                 disabled={isLoggingIn}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-lg shadow-blue-500/20 transition-all active:scale-95 disabled:opacity-50"
               >
-                {isLoggingIn ? 'MENGHUBUNGKAN...' : 'MASUK KE DASHBOARD'}
+                {isLoggingIn ? 'MEMERIKSA DATA...' : 'MASUK KE DASHBOARD'}
               </button>
             </form>
 
-            <div className="flex items-center my-6 space-x-3">
-              <div className="flex-1 h-[1px] bg-white/5"></div>
-              <span className="text-slate-500 text-[9px] font-black uppercase tracking-widest">Atau Login Sosial</span>
-              <div className="flex-1 h-[1px] bg-white/5"></div>
-            </div>
-
-            <button 
-              onClick={handleGitHubLogin}
-              className="w-full flex items-center justify-center space-x-3 bg-white hover:bg-slate-100 text-slate-900 font-bold py-3.5 rounded-xl transition-all active:scale-95"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" /></svg>
-              <span>Login dengan GitHub</span>
-            </button>
-            
             <div className="mt-8 pt-4 border-t border-white/5 text-center">
               <button 
                 onClick={() => setIsDemoMode(true)}
@@ -356,12 +264,12 @@ const App: React.FC = () => {
         <div className="pt-8 border-t border-slate-800 mt-auto space-y-3 pb-4">
            {!isDemoMode ? (
              <div className="flex items-center space-x-4 px-5 py-4 mb-4 bg-slate-800/40 rounded-[1.5rem] border border-white/5 backdrop-blur-sm">
-                <img src={user?.user_metadata?.avatar_url || 'https://ui-avatars.com/api/?name=User+NTB'} className="w-10 h-10 rounded-xl border-2 border-blue-500 p-0.5" alt="Avatar" />
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black">A</div>
                 <div className="overflow-hidden">
-                   <p className="text-[11px] font-black text-white truncate">{user?.user_metadata?.full_name || user?.email || 'Admin NTB'}</p>
+                   <p className="text-[11px] font-black text-white truncate">{user?.user_metadata?.full_name || 'Admin NTB'}</p>
                    <p className="text-[9px] text-emerald-400 font-bold tracking-widest uppercase flex items-center">
                       <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span>
-                      Terverifikasi
+                      Local Admin
                    </p>
                 </div>
              </div>
@@ -370,7 +278,7 @@ const App: React.FC = () => {
                 <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white font-black">?</div>
                 <div>
                    <p className="text-[11px] font-black text-amber-500">Mode Demo</p>
-                   <p className="text-[9px] text-amber-400/60 font-bold uppercase">Tanpa Sinkronisasi</p>
+                   <p className="text-[9px] text-amber-400/60 font-bold uppercase">Public Access</p>
                 </div>
              </div>
            )}
@@ -406,11 +314,6 @@ const App: React.FC = () => {
                    Mode Demo
                  </span>
                )}
-               {isSyncing && (
-                 <span className="px-4 py-1.5 bg-blue-100 text-blue-700 text-[10px] font-black rounded-full border border-blue-200 uppercase tracking-widest animate-pulse">
-                   Sinkronisasi...
-                 </span>
-               )}
             </div>
             <p className="text-slate-400 font-semibold text-base italic flex items-center">
                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
@@ -419,16 +322,6 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex flex-wrap items-center gap-4 print:hidden">
-            {!isDemoMode && isConfigured && (
-              <button 
-                onClick={fetchCloudData} 
-                className="p-3 bg-white border border-slate-200 text-slate-600 rounded-2xl hover:bg-slate-50 transition-all shadow-sm hover:shadow-md active:scale-95"
-                title="Muat Ulang Data"
-              >
-                  <svg className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-              </button>
-            )}
-            
             {activeView === 'regency-detail' && (
               <select 
                 value={selectedRegencyId}
